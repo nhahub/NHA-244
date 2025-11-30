@@ -49,7 +49,7 @@ This project demonstrates a complete DevOps workflow for deploying a Node.js Tod
 
 ---
 
-## 🚀 How to Trigger CI/CD Pipeline (For Presentation)
+## 🚀 How to Trigger CI/CD Pipeline
 
 ### Step 1: Make a Code Change
 
