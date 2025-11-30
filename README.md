@@ -276,6 +276,112 @@ capstone-project/
 
 ---
 
+## 🚧 Issues Faced & Solutions
+
+### Issue 1: Disk Space Critically Low (98% Full)
+**Problem:** VM disk at 98% capacity (398MB free), preventing minikube from starting and pulling images.
+
+**Root Cause:** 
+- Docker images and layers: ~3GB
+- Minikube preloaded tarballs: ~1.5GB
+- Journal logs: ~500MB
+
+**Solution:**
+```bash
+# Cleaned up Docker system
+docker system prune -a -f --volumes
+
+# Removed minikube cache
+rm -rf ~/.minikube/cache/preloaded-tarball/*
+
+# Trimmed journal logs
+sudo journalctl --vacuum-size=20M
+
+# Cleaned apt cache
+sudo apt-get clean && sudo apt-get autoremove -y
+```
+**Result:** Freed ~1GB, disk usage reduced to 82%
+
+---
+
+### Issue 2: MongoDB Connectivity from Kubernetes Pods
+**Problem:** Application pods couldn't connect to MongoDB container running on VM host.
+
+**Root Cause:** 
+- MongoDB running in Docker bridge network (172.17.0.2)
+- Kubernetes pods in separate network (192.168.49.0/24)
+- iptables blocking cross-network communication
+
+**Initial Attempts (Failed):**
+- Using `host.minikube.internal` → resolved to 192.168.49.1 but no route
+- Adding iptables NAT rules → still blocked by FORWARD chain
+- Direct IP access → "No route to host"
+
+**Final Solution:** Deploy MongoDB inside Kubernetes
+```yaml
+# Created mongodb-deployment.yaml with:
+- PersistentVolumeClaim for data persistence
+- Deployment with proper resource limits
+- ClusterIP Service for internal DNS
+- Updated configmap: MONGO_HOST="mongodb-service"
+```
+**Result:** Pods connect via Kubernetes DNS, no network issues
+
+---
+
+### Issue 3: Secret Key Mismatch
+**Problem:** MongoDB pod failing with error: `couldn't find key username in Secret`
+
+**Root Cause:** 
+- Secret defined keys as: `MONGO_USERNAME`, `MONGO_PASSWORD`, `MONGO_DATABASE`
+- Deployment referenced keys as: `username`, `password`
+
+**Solution:**
+```yaml
+# Fixed mongodb-deployment.yaml
+env:
+- name: MONGO_INITDB_ROOT_USERNAME
+  valueFrom:
+    secretKeyRef:
+      name: mongodb-credentials
+      key: MONGO_USERNAME  # Changed from 'username'
+- name: MONGO_INITDB_ROOT_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: mongodb-credentials
+      key: MONGO_PASSWORD  # Changed from 'password'
+```
+**Result:** MongoDB pod started successfully
+
+---
+
+### Issue 4: External Access to Application
+**Problem:** Application accessible inside minikube (192.168.49.2:30080) but not from outside (192.168.74.128:30080).
+
+**Root Cause:** 
+- NodePort service binds to minikube IP only
+- No NAT rules to forward VM IP traffic to minikube
+
+**Solution:** Configure iptables NAT rules
+```bash
+# Forward VM IP:30080 to minikube IP:30080
+sudo iptables -t nat -A PREROUTING -p tcp -d 192.168.74.128 --dport 30080 \
+  -j DNAT --to-destination 192.168.49.2:30080
+
+# Enable MASQUERADE for return traffic
+sudo iptables -t nat -A POSTROUTING -p tcp -d 192.168.49.2 --dport 30080 \
+  -j MASQUERADE
+
+# Allow forwarding
+sudo iptables -I FORWARD -s 0.0.0.0/0 -d 192.168.49.2 -p tcp --dport 30080 \
+  -j ACCEPT
+```
+**Result:** Application accessible at http://192.168.74.128:30080
+
+**Note:** Created `scripts/setup-iptables.sh` for easy reapplication after reboots
+
+---
+
 ## 🔐 Security Considerations
 
 ### Implemented Security Measures
