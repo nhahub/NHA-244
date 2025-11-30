@@ -1,0 +1,113 @@
+---
+- name: Configure VM with Docker and Kubernetes tools
+  hosts: vm
+  become: yes
+  vars:
+    kubectl_version: "1.31.0"
+    minikube_version: "latest"
+  
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install prerequisites
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+        state: present
+
+    # Docker Installation
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: "deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+
+    - name: Install Docker
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-buildx-plugin
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Add user to docker group
+      user:
+        name: "{{ ansible_user }}"
+        groups: docker
+        append: yes
+
+    - name: Enable and start Docker service
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    # kubectl Installation
+    - name: Download kubectl binary
+      get_url:
+        url: "https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl"
+        dest: /tmp/kubectl
+        mode: '0755'
+
+    - name: Install kubectl
+      copy:
+        src: /tmp/kubectl
+        dest: /usr/local/bin/kubectl
+        mode: '0755'
+        remote_src: yes
+
+    # minikube Installation
+    - name: Download minikube binary
+      get_url:
+        url: "https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64"
+        dest: /tmp/minikube
+        mode: '0755'
+
+    - name: Install minikube
+      copy:
+        src: /tmp/minikube
+        dest: /usr/local/bin/minikube
+        mode: '0755'
+        remote_src: yes
+
+    - name: Install conntrack (required for minikube)
+      apt:
+        name: conntrack
+        state: present
+
+    - name: Verify Docker installation
+      command: docker --version
+      register: docker_version
+      changed_when: false
+
+    - name: Verify kubectl installation
+      command: kubectl version --client --short
+      register: kubectl_version_output
+      changed_when: false
+
+    - name: Verify minikube installation
+      command: minikube version --short
+      register: minikube_version_output
+      changed_when: false
+
+    - name: Display installed versions
+      debug:
+        msg:
+          - "Docker: {{ docker_version.stdout }}"
+          - "kubectl: {{ kubectl_version_output.stdout }}"
+          - "minikube: {{ minikube_version_output.stdout }}"

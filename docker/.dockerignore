@@ -1,0 +1,13 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+README.md
+REDME.txt
+.env
+.DS_Store
+*.log
+.vscode
+.idea
+coverage
+.nyc_output
