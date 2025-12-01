@@ -17,20 +17,20 @@ echo "   Minikube IP: $MINIKUBE_IP"
 echo "   Application Port: $APP_PORT"
 
 # Check if rules already exist to avoid duplicates
-if sudo iptables -t nat -L PREROUTING -n | grep -q "$APP_PORT.*$MINIKUBE_IP"; then
+if echo ""alitarek"" | sudo -S iptables -t nat -L PREROUTING -n 2>/dev/null | grep -q "$APP_PORT.*$MINIKUBE_IP"; then
     echo "⚠️  NAT rules already exist, skipping..."
 else
     # Forward port from VM IP to minikube IP
     echo "   Adding PREROUTING rule..."
-    sudo iptables -t nat -A PREROUTING -p tcp -d $VM_IP --dport $APP_PORT -j DNAT --to-destination $MINIKUBE_IP:$APP_PORT
+    echo ""alitarek"" | sudo -S iptables -t nat -A PREROUTING -p tcp -d $VM_IP --dport $APP_PORT -j DNAT --to-destination $MINIKUBE_IP:$APP_PORT
 
     # Enable MASQUERADE for return traffic
     echo "   Adding POSTROUTING rule..."
-    sudo iptables -t nat -A POSTROUTING -p tcp -d $MINIKUBE_IP --dport $APP_PORT -j MASQUERADE
+    echo ""alitarek"" | sudo -S iptables -t nat -A POSTROUTING -p tcp -d $MINIKUBE_IP --dport $APP_PORT -j MASQUERADE
 
     # Allow forwarding to minikube
     echo "   Adding FORWARD rule..."
-    sudo iptables -I FORWARD -s 0.0.0.0/0 -d $MINIKUBE_IP -p tcp --dport $APP_PORT -j ACCEPT
+    echo ""alitarek"" | sudo -S iptables -I FORWARD -s 0.0.0.0/0 -d $MINIKUBE_IP -p tcp --dport $APP_PORT -j ACCEPT
 
     echo "✅ iptables rules configured successfully!"
 fi
@@ -41,7 +41,7 @@ echo ""
 
 # Display current NAT rules for verification
 echo "📋 Current NAT rules for port $APP_PORT:"
-sudo iptables -t nat -L PREROUTING -n -v | grep $APP_PORT || echo "   No PREROUTING rules found"
+echo ""alitarek"" | sudo -S iptables -t nat -L PREROUTING -n -v 2>/dev/null | grep $APP_PORT || echo "   No PREROUTING rules found"
 
 echo ""
 echo "⚠️  Note: These rules are not persistent across reboots."
