@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: Todos-nodejs-
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: Todos-nodejs-
+  template:
+    metadata:
+      labels:
+        app: Todos-nodejs-
+    spec:
+      imagePullSecrets:
+          - name: regcred
+      containers:
+        - name: Todos-nodejs-
+          image: sohaash/todo_app:v0.2
+          ports:
+            - containerPort: 4000
+          env:
+            - name: mongoDbUrl
+              value: mongodb://mongodb:27017/todo_db
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 4000
+            initialDelaySeconds: 10
+            periodSeconds: 10

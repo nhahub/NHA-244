@@ -1,0 +1,7 @@
+plugin: amazon.aws.aws_ec2
+regions:
+  - Global
+filters:
+  tag:Name: todoapp--server
+keyed_groups:
+  - key: tags.Name
