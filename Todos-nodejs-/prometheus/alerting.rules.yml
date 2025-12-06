@@ -1,0 +1,20 @@
+groups:
+  - name: node_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: avg(rate(node_cpu_seconds_total{mode!="idle"}[2m])) > 0.80
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage alert"
+          description: "CPU usage is above 80% for 1 minute."
+
+      - alert: HighMemoryUsage
+        expr: node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.2
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Low Memory"
+          description: "Memory available < 20%."

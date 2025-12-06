@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  todolist-app:
+    image: sohaash/todo_app:v0.2
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "4000:4000"
+    restart: always
+    depends_on:
+      - mongodb
+    environment:
+      - mongoDbUrl=mongodb+srv://todo_db:todo_db123456@cluster0.sqbuwhk.mongodb.net/?appName=Cluster0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  mongodb:
+    image: mongo:8
+    container_name: mongodb
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongosh mongodb:27017/todo_db --quiet
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  watchtower:
+    image: containrrr/watchtower
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/ubuntu/.docker/config.json:/config.json
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=30
+
+  prometheus:
+   image: prom/prometheus:v3.5.0
+   container_name: prometheus
+   volumes:
+    - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+    - ./prometheus/alerting.rules.yml:/etc/prometheus/alerting.rules.yml
+    - prometheus_data:/prometheus
+   ports:
+    - "9090:9090"
+   networks:
+    - monitoring
+
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter
+    command:
+      - '--path.rootfs=/host'
+    pid: host
+    restart: unless-stopped
+    volumes:
+      - '/:/host:ro,rslave'
+    networks:
+      - monitoring
+
+#  alertmanager:
+#    image: prom/alertmanager:v0.28.1
+#    container_name: alertmanager
+#    volumes:
+#      - ./alertmanager.yml:/etc/alertmanager/alertmanager.yml
+#      - ./bot_token:/etc/alertmanager/telegram_token_file
+#    ports:
+#      - "9093:9093"
+#    networks:
+#      - monitoring
+
+
+  grafana:
+    image: grafana/grafana:12.1
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring
+    
+
+volumes:
+  mongo_data: {}
+  prometheus_data: {}
+  grafana_data: {}
+
+networks:
+  monitoring:
+    driver: bridge

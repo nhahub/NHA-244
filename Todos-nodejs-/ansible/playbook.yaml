@@ -1,0 +1,121 @@
+---
+- name: EC2 Setup + Deploy Todo App + Monitoring
+  hosts: todoapp-server1
+  become: true
+
+  vars:
+    new_user: ubuntu
+    app_dir: /home/{{ new_user }}/Todos-nodejs-
+
+    # Watchtower settings
+    watchtower_container_name: watchtower
+    watchtower_image: containrrr/watchtower
+    watchtower_update_interval: 100
+
+  tasks:
+    # EC2 User Setup
+    - name: Ensure ansible-user exists
+      user:
+        name: "{{ new_user }}"
+        groups: sudo
+        shell: /bin/bash
+        state: present
+        create_home: yes
+
+    - name: Allow passwordless sudo for ansible-user
+      copy:
+        dest: /etc/sudoers.d/90-cloud-init-users
+        content: "%sudo ALL=(ALL) NOPASSWD:ALL"
+        mode: '0440'
+
+    - name: Create .ssh directory for ansible-user
+      file:
+        path: "/home/{{ new_user }}/.ssh"
+        state: directory
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+        mode: '0700'
+
+    - name: Copy authorized_keys from ubuntu to ansible-user
+      copy:
+        src: "/home/ubuntu/.ssh/authorized_keys"
+        dest: "/home/{{ new_user }}/.ssh/authorized_keys"
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+        mode: '0600'
+        remote_src: yes
+
+    # Docker Installation
+    - name: Install dependencies for Docker
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - apt-transport-https
+          - software-properties-common
+        state: present
+        update_cache: yes
+
+    - name: Add Docker GPG key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker repository
+      apt_repository:
+        repo: deb https://download.docker.com/linux/ubuntu jammy stable
+        state: present
+
+    - name: Install Docker CE and Compose plugin
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+          - docker-compose-plugin
+        state: present
+        update_cache: yes
+
+    - name: Add ansible-user to docker group
+      user:
+        name: "{{ new_user }}"
+        groups: docker
+        append: yes
+
+    - name: Ensure Docker is running
+      systemd:
+        name: docker
+        enabled: yes
+        state: started
+
+    - name: change the working directory to project dir
+      ansible.builtin.shell:
+        cmd: cd /home/ubuntu/Todos-nodejs-/ && docker compose up -d
+      
+
+    - name: Ensure correct permissions for app folder
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: "{{ new_user }}"
+        group: "{{ new_user }}"
+        recurse: yes
+
+    # Docker Compose Deployment
+    - name: Start full application stack using docker-compose
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        state: present
+      become_user: root
+
+    # Watchtower (Auto-update containers)
+    - name: Ensure Watchtower is running
+      community.docker.docker_container:
+        name: "{{ watchtower_container_name }}"
+        image: "{{ watchtower_image }}"
+        restart_policy: always
+        command: "--interval {{ watchtower_update_interval }} --cleanup"
+        volumes:
+          - "/var/run/docker.sock:/var/run/docker.sock"
+        state: started
+      become_user: root
